@@ -189,6 +189,16 @@ h1 {
     }
 }
 
+#cover-image {
+    max-width: 80%;
+    max-height: 40vh;
+    width: auto;
+    height: auto;
+    border: 2px solid #0f0;
+    box-shadow: 0 0 20px #0f0;
+    animation: glitch 3s infinite;
+}
+
 button.main-btn {
     background: transparent;
     color: #0f0;

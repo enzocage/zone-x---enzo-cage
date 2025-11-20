@@ -41,6 +41,10 @@ class Game {
         this.plutoniumTotal = 0; this.plutoniumCollected = 0; this.plutoniumOnMap = 0;
         this.laserTimer = 0; this.laserState = false;
         this.dangerCooldown = 0;
+        this.hasHeardDoorsSound = false;
+        this.hasHeardQSound = false;
+        this.hasPickedUpFirstKey = false;
+        this.hasPickedUpFirstPlutonium = false;
 
         // Editor
         this.editorMap = []; this.editorW = 40; this.editorH = 30; this.editorTool = '1';
@@ -62,40 +66,26 @@ class Game {
     }
 
     async fetchLevels() {
-        try {
-            const response = await fetch('js/');
-            const text = await response.text();
-            const parser = new DOMParser();
-            const doc = parser.parseFromString(text, 'text/html');
-            const links = Array.from(doc.querySelectorAll('a'));
+        // List of potential level files
+        const potentialLevels = ['level1.json', 'level2.json', 'zonex_level (23).json', 'zonex_level (27).json', 'zonex_level (32).json'];
+        CSV_LEVELS.length = 0;
 
-            const jsonFiles = links
-                .map(link => link.getAttribute('href'))
-                .filter(href => href && href.toLowerCase().endsWith('.json'));
-
-            if (jsonFiles.length > 0) {
-                CSV_LEVELS.length = 0;
-                jsonFiles.sort(); // Ensure consistent order
-
-                for (const file of jsonFiles) {
-                    // Handle paths: http-server usually returns relative paths like "level1.json"
-                    const path = file.includes('/') ? file : 'js/' + file;
-                    try {
-                        const res = await fetch(path);
-                        const json = await res.json();
-                        const csv = this.jsonToCsv(json);
-                        CSV_LEVELS.push(csv);
-                    } catch (err) {
-                        console.error("Error parsing level file:", file, err);
-                    }
+        for (const file of potentialLevels) {
+            try {
+                const res = await fetch('levels/' + file);
+                if (res.ok) {
+                    const json = await res.json();
+                    const csv = this.jsonToCsv(json);
+                    CSV_LEVELS.push(csv);
                 }
+            } catch (err) {
+                console.error("Error loading level file:", file, err);
             }
-        } catch (e) {
-            console.error("Failed to load levels from directory:", e);
-            // Fallback to START_CONFIG if directory listing fails
-            if (START_CONFIG && CSV_LEVELS.length === 0) {
-                CSV_LEVELS.push(this.jsonToCsv(START_CONFIG));
-            }
+        }
+
+        // Fallback to START_CONFIG if no levels loaded
+        if (CSV_LEVELS.length === 0 && START_CONFIG) {
+            CSV_LEVELS.push(this.jsonToCsv(START_CONFIG));
         }
     }
 
@@ -204,21 +194,64 @@ class Game {
         this.customLevelData = csv; this.testingLevel = true; this.start(true);
     }
 
-    openLevelSelect() {
+    async openLevelSelect() {
         this.hideScreens();
         const grid = document.getElementById('level-select-grid');
         grid.innerHTML = '';
-        CSV_LEVELS.forEach((lvl, idx) => {
-            const btn = document.createElement('div');
-            btn.className = 'level-btn';
-            btn.innerText = `ZONE 1-${idx + 1}`;
-            btn.onclick = () => {
-                this.levelIdx = idx;
-                this.customLevelData = null;
-                this.start();
-            };
-            grid.appendChild(btn);
-        });
+
+        // List of potential level files
+        const potentialLevels = ['level1.json', 'level2.json', 'zonex_level (23).json', 'zonex_level (27).json', 'zonex_level (32).json'];
+        const jsonFiles = [];
+
+        for (const file of potentialLevels) {
+            try {
+                const res = await fetch('levels/' + file);
+                if (res.ok) {
+                    jsonFiles.push(file);
+                }
+            } catch (err) {
+                // Ignore errors for missing files
+            }
+        }
+
+        if (jsonFiles.length > 0) {
+            jsonFiles.sort(); // Ensure consistent order
+
+            jsonFiles.forEach((file, idx) => {
+                const fileName = file.replace('.json', ''); // Get filename without extension
+                const btn = document.createElement('div');
+                btn.className = 'level-btn';
+                btn.innerText = fileName.toUpperCase();
+                btn.onclick = async () => {
+                    try {
+                        const res = await fetch('levels/' + file);
+                        const json = await res.json();
+                        const csv = this.jsonToCsv(json);
+                        this.customLevelData = csv;
+                        this.levelIdx = 0; // Not used when customLevelData is set
+                        this.start();
+                    } catch (err) {
+                        console.error("Error loading level:", file, err);
+                        alert("Error loading level: " + file);
+                    }
+                };
+                grid.appendChild(btn);
+            });
+        } else {
+            // Fallback to old method if no levels found
+            CSV_LEVELS.forEach((lvl, idx) => {
+                const btn = document.createElement('div');
+                btn.className = 'level-btn';
+                btn.innerText = `ZONE 1-${idx + 1}`;
+                btn.onclick = () => {
+                    this.levelIdx = idx;
+                    this.customLevelData = null;
+                    this.start();
+                };
+                grid.appendChild(btn);
+            });
+        }
+
         document.getElementById('level-select-screen').style.display = 'flex';
     }
 
@@ -242,7 +275,7 @@ class Game {
         document.getElementById('ui-layer').style.display = 'flex';
         this.loadLevel(this.levelIdx);
     }
-    reset() { if (this.testingLevel) this.start(true); else this.start(); }
+    reset() { soundManager.stopWinMusic(); if (this.testingLevel) this.start(true); else this.start(); }
 
     loadLevel(idx) {
         let data = this.customLevelData ? this.customLevelData : CSV_LEVELS[idx];
@@ -262,9 +295,12 @@ class Game {
 
         this.radiation = 0; this.player.carrying = false; this.player.carryingCount = 0; soundManager.isCarrying = false; this.keysHeld = 0; this.blockadesHeld = 0;
         this.player.trail = []; // Clear trail on new level
+        this.hasHeardDoorsSound = false; this.hasHeardQSound = false; // Reset first-time sounds
+        this.hasPickedUpFirstKey = false; this.hasPickedUpFirstPlutonium = false; // Reset first pickup flags
         document.getElementById('level-screen').style.display = 'flex';
         this.parseLevel(data);
         soundManager.playLevelStart();
+        soundManager.playFindSound();
         setTimeout(() => { this.hideScreens(); this.state = 'PLAYING'; }, 2000);
     }
 
@@ -312,6 +348,11 @@ class Game {
 
     loop(t) {
         const dt = t - (this.lastTime || t); this.lastTime = t;
+        if (this.state === 'MENU') {
+            soundManager.playMenuMusic();
+        } else {
+            soundManager.stopMenuMusic();
+        }
         if (this.state === 'EDITOR') { this.updateEditor(dt); this.drawEditor(t); }
         else if (this.state === 'PLAYING') { this.updateGame(dt, t); this.drawGame(t); }
         requestAnimationFrame(time => this.loop(time));
@@ -348,7 +389,15 @@ class Game {
 
         let color = "#000000"; // default
 
-        if (type === 'WALL' || type === '1') color = "#D2B48C"; // light brown
+        if (type === 'WALL' || type === '1') {
+            if (this.player.carrying) {
+                const speed = 2 + this.carryingTimer * 0.1;
+                const blink = Math.sin(this.carryingTimer * speed + y / 200) > 0.7;
+                color = blink ? "#000000" : `hsl(${(this.carryingTimer * 50) % 360}, 60%, 50%)`;
+            } else {
+                color = "#D2B48C"; // light brown
+            }
+        }
         else if (type === 'FLOOR' || type === '2') color = "#000000"; // black
         else if (type === 'GRASS' || type === '11') color = "#333333"; // dark gray
         else if (type === 'BLOCKADE_STATION' || type === '12') color = "#FFD700";
@@ -418,6 +467,14 @@ class Game {
         this.laserTimer += dt;
         if (this.laserTimer > 2000) { this.laserTimer = 0; this.laserState = !this.laserState; }
 
+        // Carrying timer for color cycling
+        if (this.player.carrying) {
+            const speedFactor = 1 + this.carryingTimer * 0.05; // Speed up over time
+            this.carryingTimer += (dt / 1000) * speedFactor;
+        } else {
+            this.carryingTimer = 0;
+        }
+
         // Laser hum
         if (this.laserState) {
             laserHum.start();
@@ -438,7 +495,7 @@ class Game {
         // Blockade Logic (Input Q)
         if (this.input.q && !this.qPressed) {
             this.qPressed = true;
-            if (this.blockadesHeld > 0) {
+            if (this.blockadesHeld > 0 && this.countBlockades() < 9) {
                 // Place behind
                 const tC = Math.round((this.player.x - 4) / TILE_SIZE) - this.player.lastDir.x;
                 const tR = Math.round((this.player.y - 4) / TILE_SIZE) - this.player.lastDir.y;
@@ -482,9 +539,13 @@ class Game {
 
                 // Check Blockade Station
                 if (this.getTile(col, row) === ENTITY.BLOCKADE_STATION) {
-                    if (this.blockadesHeld < 3) {
-                        this.blockadesHeld = 3; // Refill
+                    if (this.blockadesHeld < 1) {
+                        this.blockadesHeld = 1; // Refill to 1
                         soundManager.playSFX('block_pickup');
+                    }
+                    if (!this.hasHeardQSound) {
+                        soundManager.playQSound();
+                        this.hasHeardQSound = true;
                     }
                 }
 
@@ -507,15 +568,24 @@ class Game {
                     // Check capacity
                     if (this.player.carryingCount < this.carryCapacity) {
                         i.active = false;
+                        if (this.player.carryingCount === 0) soundManager.playOnSound();
                         this.player.carryingCount++;
                         this.player.carrying = true;
                         soundManager.isCarrying = true;
                         soundManager.playSFX('pickup_plutonium', this.player.carryingCount); this.spawnParticles(i.x + 16, i.y + 16, "sparkle", 20);
+                        if (!this.hasPickedUpFirstPlutonium) {
+                            soundManager.playHurrySound();
+                            this.hasPickedUpFirstPlutonium = true;
+                        }
                     }
                 }
                 else if (i.type === ENTITY.KEY) {
                     i.active = false; this.keysHeld++; this.score += 50; soundManager.playSFX('key');
                     this.spawnParticles(i.x + 16, i.y + 16, "sparkle", 10);
+                    if (!this.hasPickedUpFirstKey) {
+                        soundManager.playKeySound();
+                        this.hasPickedUpFirstKey = true;
+                    }
                 }
             }
         });
@@ -529,7 +599,8 @@ class Game {
             this.player.carryingCount = 0;
             this.player.carrying = false;
             soundManager.isCarrying = false;
-            this.radiation = Math.max(0, this.radiation - 20); // Heal
+            soundManager.stopOnSound();
+            this.radiation = 0; // Reset radiation
 
             soundManager.playSFX('deposit');
             this.spawnParticles(this.player.x + 16, this.player.y + 16, "explode", 30);
@@ -537,6 +608,7 @@ class Game {
             if (this.plutoniumCollected >= this.plutoniumTotal) {
                 this.score += 1000;
                 soundManager.playNextLevel();
+                soundManager.playWinMusic();
                 if (this.testingLevel) { setTimeout(() => { alert("Level geschafft!"); this.quitEditor(); }, 2000); }
                 else { setTimeout(() => this.loadLevel(this.levelIdx + 1), 2000); }
             }
@@ -545,7 +617,7 @@ class Game {
         if (this.player.carrying) {
             this.radiation += 0.05 * this.player.carryingCount;
         } else {
-            this.radiation += 0.01;
+            // No radiation increase when not carrying
         }
 
         if (this.radiation >= 100) this.die();
@@ -604,6 +676,24 @@ class Game {
                 soundManager.playSFX('danger');
                 this.dangerCooldown = 1.0;
             }
+
+            // Doors sound when first adjacent to LASER
+            if (!this.hasHeardDoorsSound) {
+                let nearLaser = false;
+                for (let y = Math.floor(this.player.y / TILE_SIZE) - 1; y <= Math.floor(this.player.y / TILE_SIZE) + 1; y++) {
+                    for (let x = Math.floor(this.player.x / TILE_SIZE) - 1; x <= Math.floor(this.player.x / TILE_SIZE) + 1; x++) {
+                        if (this.getTile(x, y) === ENTITY.LASER) {
+                            nearLaser = true;
+                            break;
+                        }
+                    }
+                    if (nearLaser) break;
+                }
+                if (nearLaser) {
+                    soundManager.playDoorsSound();
+                    this.hasHeardDoorsSound = true;
+                }
+            }
         }
 
         if (this.laserState && this.getTile(pCol, pRow) === ENTITY.LASER) this.die();
@@ -652,6 +742,7 @@ class Game {
             this.score += this.player.carryingCount * 50; // Half points for death delivery
             this.player.carrying = false;
             this.player.carryingCount = 0;
+            soundManager.stopOnSound();
         }
 
         this.spawnParticles(this.player.x + 16, this.player.y + 16, "explode", 50);
@@ -725,5 +816,14 @@ class Game {
     checkCol(a, b) { return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y; }
     getTile(col, row) { if (col < 0 || col >= this.width || row < 0 || row >= this.height) return ENTITY.WALL; return this.map[row][col]; }
     setTile(col, row, v) { if (col >= 0 && col < this.width && row >= 0 && row < this.height) this.map[row][col] = v; }
+    countBlockades() {
+        let count = 0;
+        for (let row of this.map) {
+            for (let tile of row) {
+                if (tile === ENTITY.BLOCKADE) count++;
+            }
+        }
+        return count;
+    }
     hideScreens() { document.querySelectorAll('.screen').forEach(s => s.style.display = 'none'); }
 }

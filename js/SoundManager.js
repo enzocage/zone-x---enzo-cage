@@ -17,6 +17,41 @@ class SoundManager {
         this.bgm = new Audio('https://fi.zophar.net/soundfiles/commodore-64/armalyte/02_Title%20Screen.mp3');
         this.bgm.loop = true;
         this.bgm.volume = 0.1; // Start at 10%
+
+        // Menu Music
+        this.menuMusic = new Audio('mp3/enzo_cage_1984_koyaanisquatsi.mp3');
+        this.menuMusic.loop = true;
+        this.menuMusic.volume = 0.3; // 30%
+
+        // Win Music
+        this.winMusic = new Audio('mp3/spheric_lounge_s88pre_plasmotronic.mp3');
+        this.winMusic.loop = true;
+        this.winMusic.volume = 0.3; // 30%
+
+        // Find sound
+        this.findSound = new Audio('mp3/find.mp3');
+        this.findSound.volume = 0.3; // 30%
+
+        // Doors sound
+        this.doorsSound = new Audio('mp3/doors.mp3');
+        this.doorsSound.volume = 0.3; // 30%
+
+        // Q sound
+        this.qSound = new Audio('mp3/q.mp3');
+        this.qSound.volume = 0.3; // 30%
+
+        // Key sound
+        this.keySound = new Audio('mp3/key.mp3');
+        this.keySound.volume = 0.3; // 30%
+
+        // Hurry sound
+        this.hurrySound = new Audio('mp3/hurry.mp3');
+        this.hurrySound.volume = 0.3; // 30%
+
+        // On sound (for carrying plutonium)
+        this.onSound = new Audio('mp3/on.mp3');
+        this.onSound.volume = 0.3; // 30%
+        this.onSound.loop = true;
     }
 
     playMusic() {
@@ -40,6 +75,63 @@ class SoundManager {
 
     setMusicVolume(v) {
         this.bgm.volume = Math.max(0, Math.min(1, v));
+    }
+
+    playMenuMusic() {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        this.menuMusic.currentTime = 0;
+        this.menuMusic.play().catch(e => console.log("Menu music play failed:", e));
+    }
+
+    stopMenuMusic() {
+        this.menuMusic.pause();
+        this.menuMusic.currentTime = 0;
+    }
+
+    playWinMusic() {
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        this.winMusic.currentTime = 0;
+        this.winMusic.play().catch(e => console.log("Win music play failed:", e));
+    }
+
+    stopWinMusic() {
+        this.winMusic.pause();
+        this.winMusic.currentTime = 0;
+    }
+
+    playFindSound() {
+        this.findSound.currentTime = 0; // Reset to start
+        this.findSound.play().catch(e => console.log("Find sound play failed:", e));
+    }
+
+    playDoorsSound() {
+        this.doorsSound.currentTime = 0;
+        this.doorsSound.play().catch(e => console.log("Doors sound play failed:", e));
+    }
+
+    playQSound() {
+        this.qSound.currentTime = 0;
+        this.qSound.play().catch(e => console.log("Q sound play failed:", e));
+    }
+
+    playKeySound() {
+        this.keySound.currentTime = 0;
+        this.keySound.play().catch(e => console.log("Key sound play failed:", e));
+    }
+
+    playHurrySound() {
+        this.hurrySound.currentTime = 0;
+        this.hurrySound.play().catch(e => console.log("Hurry sound play failed:", e));
+    }
+
+    playOnSound() {
+        this.onSound.currentTime = 0;
+        this.onSound.play().catch(e => console.log("On sound play failed:", e));
+    }
+
+    stopOnSound() {
+        this.onSound.pause();
+        this.onSound.currentTime = 0;
     }
 
     startAmbience() {
