@@ -40,6 +40,7 @@ class Game {
         this.qPressed = false;
         this.plutoniumTotal = 0; this.plutoniumCollected = 0; this.plutoniumOnMap = 0;
         this.laserTimer = 0; this.laserState = false;
+        this.dangerCooldown = 0;
 
         // Editor
         this.editorMap = []; this.editorW = 40; this.editorH = 30; this.editorTool = '1';
@@ -344,71 +345,61 @@ class Game {
 
     drawEntity(ctx, type, x, y, w, h, t) {
         if (!type) return;
-        const cx = x + w / 2; const cy = y + h / 2;
 
-        if (type === 'WALL' || type === '1') {
-            ctx.fillStyle = "#222"; ctx.fillRect(x, y, w, h);
-            ctx.strokeStyle = "#00ff00"; ctx.lineWidth = 1;
-            ctx.strokeRect(x + 4, y + 4, w - 8, h - 8);
-            ctx.fillStyle = "#004400"; ctx.fillRect(x, y, w, 4);
-        } else if (type === 'FLOOR' || type === '2') {
-            ctx.strokeStyle = "rgba(0, 50, 0, 0.3)"; ctx.lineWidth = 1;
-            ctx.strokeRect(x, y, w, h);
-        } else if (type === 'GRASS' || type === '11') {
-            ctx.fillStyle = "#006600";
-            for (let i = 0; i < 5; i++) ctx.fillRect(x + Math.random() * 30, y + Math.random() * 30, 3, 6);
-        } else if (type === 'BLOCKADE_STATION' || type === '12') {
-            ctx.fillStyle = "#003366"; ctx.fillRect(x, y, w, h);
-            ctx.fillStyle = "#00ffff"; ctx.fillText("BLK", cx - 10, cy + 5);
-            ctx.strokeStyle = "#0ff"; ctx.strokeRect(x + 2, y + 2, w - 4, h - 4);
-        } else if (type === 'BLOCKADE' || type === '13') {
-            ctx.fillStyle = "#555"; ctx.fillRect(x + 4, y + 4, w - 8, h - 8);
-            ctx.fillStyle = "#aaa"; ctx.fillRect(x + 8, y + 8, w - 16, h - 16);
-            ctx.strokeStyle = "#fff"; ctx.strokeRect(x + 4, y + 4, w - 8, h - 8);
-        } else if (type === 'DOOR' || type === '4') {
-            ctx.fillStyle = "#400"; ctx.fillRect(x, y, w, h);
-            ctx.strokeStyle = "#f00"; ctx.strokeRect(x, y, w, h);
-            if (Math.floor(t / 500) % 2 === 0) { ctx.fillStyle = "#f00"; ctx.fillRect(x + 10, y + 10, 20, 20); }
-        } else if (type === 'CONTAINER' || type === '7') {
-            ctx.fillStyle = "#001144"; ctx.fillRect(x, y, w, h);
-            ctx.strokeStyle = "#0ff"; ctx.lineWidth = 2;
-            ctx.strokeRect(x, y, w, h);
-            ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + w, y + h); ctx.moveTo(x + w, y); ctx.lineTo(x, y + h); ctx.stroke();
-        } else if (type === 'LASER' || type === '3') {
-            ctx.fillStyle = "#111"; ctx.fillRect(x, y, w, h);
-            if (this.laserState || this.state === 'EDITOR') {
-                ctx.strokeStyle = "#ff00ff"; ctx.lineWidth = 3;
-                ctx.beginPath(); ctx.moveTo(x, cy); ctx.lineTo(x + w, cy); ctx.stroke();
-                ctx.shadowBlur = 20; ctx.shadowColor = "#f0f"; ctx.stroke(); ctx.shadowBlur = 0;
-            }
-        } else if (type === 'PLUTONIUM' || type === '6') {
-            const pulse = Math.sin(t / 100) * 5;
-            ctx.fillStyle = "#0f0"; ctx.shadowBlur = 10; ctx.shadowColor = "#0f0";
-            ctx.beginPath(); ctx.arc(cx, cy, 5 + pulse, 0, 6.28); ctx.fill(); ctx.shadowBlur = 0;
-        } else if (type === 'KEY' || type === '5') {
-            ctx.fillStyle = "#ff0"; ctx.textAlign = "center"; ctx.font = "bold 20px Arial";
-            ctx.fillText("🗝️", cx, cy + 7);
-        } else if (type === 'PLAYER' || type === '9') {
-            ctx.fillStyle = this.player.carrying ? "#0f0" : "#0ff";
-            ctx.shadowBlur = 15; ctx.shadowColor = ctx.fillStyle;
-            ctx.beginPath(); ctx.moveTo(cx, y + 5); ctx.lineTo(x + w - 5, y + h - 5); ctx.lineTo(x + 5, y + h - 5); ctx.fill(); ctx.shadowBlur = 0;
-        } else if (type === 'ROBOT' || type === 'R') {
-            ctx.fillStyle = "#d00"; ctx.fillRect(x + 2, y + 2, w - 4, h - 4);
-            ctx.fillStyle = "#ff0"; ctx.fillRect(x + 8, y + 8, 6, 4); ctx.fillRect(x + 20, y + 8, 6, 4);
-        } else if (type === 'ALIEN' || type === 'A') {
-            // Violett sphere - Changed to Blue with Yellow Eyes as requested
-            const bob = Math.sin(t / 200) * 4;
-            ctx.fillStyle = "#00f"; // Blue
-            ctx.beginPath(); ctx.arc(cx, cy + bob, 10, 0, 6.28); ctx.fill();
-            // Yellow eyes
-            ctx.fillStyle = "#ff0";
-            ctx.fillRect(x + 10, y + 10 + bob, 4, 4); ctx.fillRect(x + 26, y + 10 + bob, 4, 4);
-        } else if (type === 'MINE' || type === 'M') {
-            ctx.fillStyle = "#333"; ctx.beginPath(); ctx.arc(cx, cy, 12, 0, 6.28); ctx.fill();
-            ctx.fillStyle = "#f00"; ctx.beginPath(); ctx.arc(cx, cy, 5, 0, 6.28); ctx.fill();
-        } else if (type === 'START' || type === '9') {
-            ctx.fillStyle = "#00f"; ctx.fillText("S", cx, cy + 5);
+        let color = "#000000"; // default
+
+        if (type === 'WALL' || type === '1') color = "#D2B48C"; // light brown
+        else if (type === 'FLOOR' || type === '2') color = "#000000"; // black
+        else if (type === 'GRASS' || type === '11') color = "#333333"; // dark gray
+        else if (type === 'BLOCKADE_STATION' || type === '12') color = "#FFD700";
+        else if (type === 'BLOCKADE' || type === '13') {
+            color = "#FFD700";
+            ctx.fillStyle = color;
+            ctx.fillRect(x + 12, y + 12, w - 24, h - 24); // 40% size
+            return; // special case
         }
+        else if (type === 'DOOR' || type === '4') color = "#EC9357";
+        else if (type === 'CONTAINER' || type === '7') {
+            if (this.player.carrying) {
+                color = Math.floor(t / 100) % 2 === 0 ? "#32CD32" : "#000000";
+            } else {
+                color = "#32CD32";
+            }
+        }
+        else if (type === 'LASER' || type === '3') {
+            if (this.laserState) {
+                // When closed, flicker dark red with wavering
+                let intensity = (Math.sin(t / 50) + 1) / 2; // 0 to 1
+                let r = Math.floor(0x8B * intensity);
+                let g = Math.floor(0x00 * intensity);
+                let b = Math.floor(0x00 * intensity);
+                color = `rgb(${r}, ${g}, ${b})`;
+            } else {
+                // When open, small dark red square
+                color = "#8B0000";
+                ctx.fillStyle = color;
+                ctx.fillRect(x + 12, y + 12, w - 24, h - 24); // 50% size
+                return; // special case
+            }
+        }
+        else if (type === 'PLUTONIUM' || type === '6') {
+            const colors = ["#FFFF00", "#FFA500", "#FF0000", "#800080", "#0000FF", "#000000"];
+            color = colors[Math.floor(t / 125) % colors.length];
+        }
+        else if (type === 'KEY' || type === '5') {
+            color = "#EC9357"; // same as door
+            ctx.fillStyle = color;
+            ctx.fillRect(x + 12, y + 12, w - 24, h - 24); // 50% size
+            return; // special case
+        }
+        else if (type === 'PLAYER' || type === '9') color = this.player.carrying ? "#FFD700" : "#A6ECFF";
+        else if (type === 'ROBOT' || type === 'R') color = "#DC143C";
+        else if (type === 'ALIEN' || type === 'A') color = "#8A2BE2";
+        else if (type === 'MINE' || type === 'M') color = "#696969";
+        else if (type === 'START' || type === '9') color = "#00BFFF";
+
+        ctx.fillStyle = color;
+        ctx.fillRect(x + 4, y + 4, w - 8, h - 8);
     }
 
     updateGame(dt, t) {
@@ -426,6 +417,13 @@ class Game {
 
         this.laserTimer += dt;
         if (this.laserTimer > 2000) { this.laserTimer = 0; this.laserState = !this.laserState; }
+
+        // Laser hum
+        if (this.laserState) {
+            laserHum.start();
+        } else {
+            laserHum.stop();
+        }
 
         this.particles = this.particles.filter(p => p.life > 0);
         this.particles.forEach(p => p.update());
@@ -589,6 +587,25 @@ class Game {
             if (this.checkCol(this.player, { x: en.x + 4, y: en.y + 4, w: 24, h: 24 })) this.die();
         });
 
+        // Danger sound when adjacent to enemy
+        this.dangerCooldown -= dt;
+        if (this.dangerCooldown <= 0) {
+            let inDanger = false;
+            this.enemies.forEach(en => {
+                if (en.type === 'ROBOT' || en.type === 'ALIEN') {
+                    let dx = Math.abs(this.player.x - en.x);
+                    let dy = Math.abs(this.player.y - en.y);
+                    if (dx <= TILE_SIZE && dy <= TILE_SIZE && (dx > 0 || dy > 0)) {
+                        inDanger = true;
+                    }
+                }
+            });
+            if (inDanger) {
+                soundManager.playSFX('danger');
+                this.dangerCooldown = 1.0;
+            }
+        }
+
         if (this.laserState && this.getTile(pCol, pRow) === ENTITY.LASER) this.die();
 
         const tx = Math.max(0, Math.min(this.player.x - VIEWPORT_WIDTH / 2, (this.width * TILE_SIZE) - VIEWPORT_WIDTH));
@@ -681,8 +698,7 @@ class Game {
             else if (i.type === ENTITY.KEY) this.drawEntity(this.ctx, 'KEY', i.x, i.y, 32, 32, t);
         });
 
-        const pBob = this.player.isMoving ? Math.sin(t / 50) * 2 : 0;
-        this.drawEntity(this.ctx, 'PLAYER', this.player.x, this.player.y + pBob, 32, 32, t);
+        this.drawEntity(this.ctx, 'PLAYER', this.player.x, this.player.y, 32, 32, t);
 
         this.enemies.forEach(e => {
             let type = 'ROBOT'; if (e.type === 'ALIEN') type = 'ALIEN'; if (e.type === 'MINE') type = 'MINE';

@@ -11,7 +11,7 @@ class SoundManager {
         // Arpeggiator State
         this.arpNextTime = 0;
         this.arpNoteIdx = 0;
-        this.scale = [130.81, 155.56, 196.00, 233.08, 261.63, 311.13, 392.00, 466.16, 523.25, 622.25, 783.99]; // Cm7 extended
+        this.scale = [65.41, 77.78, 98.00, 116.54, 130.81, 155.56, 196.00, 233.08, 261.63, 311.13, 392.00]; // Cm7 extended, one octave lower
 
         // Music
         this.bgm = new Audio('https://fi.zophar.net/soundfiles/commodore-64/armalyte/02_Title%20Screen.mp3');
@@ -61,9 +61,9 @@ class SoundManager {
 
         // Dramatic Arpeggiator (Tension while carrying)
         if (this.isCarrying && carryingCount > 0) {
-            // Speed increases with count
+            // Speed increases with count, much faster
             const speedFactor = Math.min(carryingCount, 8) / 8;
-            const interval = 0.3 - (speedFactor * 0.2); // 0.3s down to 0.1s
+            const interval = 0.1 - (speedFactor * 0.05); // 0.1s down to 0.05s
 
             if (now >= this.arpNextTime) {
                 this.playArpNote(carryingCount);
@@ -218,7 +218,7 @@ class SoundManager {
                 break;
 
             case 'grass':
-                osc.type = 'triangle'; osc.frequency.setValueAtTime(300 + Math.random() * 100, now);
+                osc.type = 'triangle'; osc.frequency.setValueAtTime(150 + Math.random() * 50, now); // Lower tone
                 gain.gain.setValueAtTime(0.05, now); gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
                 osc.start(now); osc.stop(now + 0.1);
                 break;
@@ -257,6 +257,13 @@ class SoundManager {
                 stepNoise.connect(stepFilter); stepFilter.connect(stepGain); stepGain.connect(this.masterGain);
                 stepNoise.start(now);
                 break;
+
+            case 'danger':
+                // Danger sound: sharp beep at 10% volume
+                osc.type = 'sawtooth'; osc.frequency.setValueAtTime(800, now); osc.frequency.linearRampToValueAtTime(600, now + 0.2);
+                gain.gain.setValueAtTime(0.015, now); gain.gain.linearRampToValueAtTime(0, now + 0.2);
+                osc.start(now); osc.stop(now + 0.2);
+                break;
         }
     }
 }
@@ -287,3 +294,26 @@ class MoveSynth {
     }
 }
 const moveSynth = new MoveSynth();
+
+class LaserHum {
+    constructor() { this.osc = null; this.gain = null; this.playing = false; }
+    start() {
+        if (this.playing) return;
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        this.osc = audioCtx.createOscillator(); this.gain = audioCtx.createGain();
+        this.osc.type = 'sine'; this.osc.frequency.value = 80; // Low hum
+        this.osc.connect(this.gain);
+        this.gain.connect(audioCtx.destination);
+        this.gain.gain.value = 0; this.gain.gain.linearRampToValueAtTime(0.05, audioCtx.currentTime + 0.1); // Subtle volume
+        this.osc.start(); this.playing = true;
+    }
+    stop() {
+        if (!this.playing) return;
+        this.playing = false;
+        const o = this.osc; const g = this.gain;
+        if (g) try { g.gain.linearRampToValueAtTime(0, audioCtx.currentTime + 0.1); } catch (e) { }
+        setTimeout(() => { try { o.stop(); o.disconnect(); g.disconnect(); } catch (e) { } }, 200);
+        this.osc = null; this.gain = null;
+    }
+}
+const laserHum = new LaserHum();
