@@ -57,23 +57,45 @@ class Game {
     }
 
     initLevels() {
-        // 1. Load START_CONFIG as Level 1
-        if (START_CONFIG) {
-            this.editorMap = START_CONFIG.map;
-            this.editorH = START_CONFIG.height;
-            this.editorW = START_CONFIG.width;
-            let csv = this.jsonToCsv(START_CONFIG);
-            CSV_LEVELS[0] = csv;
-        } else { this.initEditorGrid(); }
+        this.fetchLevels();
+    }
 
-        // 2. Load Additional Levels
-        ADDITIONAL_LEVELS.forEach((lvlData) => {
-            try {
-                const lvl = (typeof lvlData === 'string') ? JSON.parse(lvlData) : lvlData;
-                const csv = this.jsonToCsv(lvl);
-                CSV_LEVELS.push(csv);
-            } catch (e) { console.error("Error parsing level", e); }
-        });
+    async fetchLevels() {
+        try {
+            const response = await fetch('js/');
+            const text = await response.text();
+            const parser = new DOMParser();
+            const doc = parser.parseFromString(text, 'text/html');
+            const links = Array.from(doc.querySelectorAll('a'));
+
+            const jsonFiles = links
+                .map(link => link.getAttribute('href'))
+                .filter(href => href && href.toLowerCase().endsWith('.json'));
+
+            if (jsonFiles.length > 0) {
+                CSV_LEVELS.length = 0;
+                jsonFiles.sort(); // Ensure consistent order
+
+                for (const file of jsonFiles) {
+                    // Handle paths: http-server usually returns relative paths like "level1.json"
+                    const path = file.includes('/') ? file : 'js/' + file;
+                    try {
+                        const res = await fetch(path);
+                        const json = await res.json();
+                        const csv = this.jsonToCsv(json);
+                        CSV_LEVELS.push(csv);
+                    } catch (err) {
+                        console.error("Error parsing level file:", file, err);
+                    }
+                }
+            }
+        } catch (e) {
+            console.error("Failed to load levels from directory:", e);
+            // Fallback to START_CONFIG if directory listing fails
+            if (START_CONFIG && CSV_LEVELS.length === 0) {
+                CSV_LEVELS.push(this.jsonToCsv(START_CONFIG));
+            }
+        }
     }
 
     jsonToCsv(levelObj) {
@@ -83,7 +105,7 @@ class Game {
             if (c === '7') return 'X'; if (c === '9') return 'S'; if (c === 'R') return 'R';
             if (c === 'A') return 'A'; if (c === 'M') return 'M';
             if (c === '11') return '"'; if (c === '12') return 'B';
-            return ',';
+            return '';
         }).join(',')).join('\n');
     }
 
