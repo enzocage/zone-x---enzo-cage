@@ -445,7 +445,15 @@ class Game {
         else if (type === 'ROBOT' || type === 'R') color = "#DC143C";
         else if (type === 'ALIEN' || type === 'A') color = "#8A2BE2";
         else if (type === 'MINE' || type === 'M') color = "#696969";
-        else if (type === 'START' || type === '9') color = "#00BFFF";
+        else if (type === 'START' || type === '9') {
+            // Draw three small gray squares
+            ctx.fillStyle = "#666666";
+            const size = 6;
+            ctx.fillRect(x + 4, y + 4, size, size);
+            ctx.fillRect(x + 16, y + 4, size, size);
+            ctx.fillRect(x + 10, y + 16, size, size);
+            return; // Special case
+        }
 
         ctx.fillStyle = color;
         ctx.fillRect(x + 4, y + 4, w - 8, h - 8);
@@ -454,6 +462,17 @@ class Game {
     updateGame(dt, t) {
         this.globalFrame++;
         soundManager.updateAmbience(this.radiation, this.player.carryingCount);
+
+        // Update death message timer
+        if (this.deathMessageTime > 0) {
+            this.deathMessageTime--;
+        } else {
+            this.deathMessage = null;
+            this.deathPause = false;
+        }
+
+        // If death pause, skip game logic but allow drawing
+        if (this.deathPause) return;
 
         // High Rad Shake
         if (this.radiation > 90) {
@@ -473,6 +492,9 @@ class Game {
             this.carryingTimer += (dt / 1000) * speedFactor;
         } else {
             this.carryingTimer = 0;
+            this.deathMessage = null;
+            this.deathMessageTime = 0;
+            this.deathPause = false;
         }
 
         // Laser hum
@@ -634,7 +656,7 @@ class Game {
             const c1 = Math.floor(ex / TILE_SIZE), r1 = Math.floor(ey / TILE_SIZE);
             const c2 = Math.floor((ex + 31) / TILE_SIZE), r2 = Math.floor((ey + 31) / TILE_SIZE);
 
-            // Check Enemy Collisions with Wall, Door, Grass, Blockade, Station, Container, Laser
+            // Check Enemy Collisions with Wall, Door, Grass, Blockade, Station, Container, Laser, Start
             const solidForEnemy = (t) => t !== ENTITY.EMPTY && t !== ENTITY.FLOOR; // Everything is solid except empty/floor
             if ([c1, c2].some(c => [r1, r2].some(r => solidForEnemy(this.getTile(c, r))))) blocked = true;
 
@@ -730,6 +752,9 @@ class Game {
 
     die() {
         soundManager.playSFX('die'); soundManager.isCarrying = false; this.lives--;
+        this.deathMessage = `LIVES LEFT: ${this.lives}`;
+        this.deathMessageTime = 120; // 2 seconds at 60fps
+        this.deathPause = true;
 
         // --- NEW: Return collected plutonium to map (optional, or just keep it collected) ---
         // In this arcade logic, deaths usually mean restart or continue with penalty.
@@ -797,6 +822,28 @@ class Game {
         });
 
         this.ctx.restore();
+
+        // Draw death message
+        if (this.deathMessage && this.deathMessageTime > 0) {
+            const alpha = this.deathMessageTime > 60 ? 1 : this.deathMessageTime / 60;
+            this.ctx.globalAlpha = alpha * 0.8; // Semi-transparent black background
+            this.ctx.fillStyle = "#000";
+            this.ctx.fillRect(VIEWPORT_WIDTH / 2 - 200, VIEWPORT_HEIGHT / 2 - 50, 400, 100);
+            this.ctx.globalAlpha = alpha;
+            this.ctx.fillStyle = "#fff";
+            this.ctx.font = "72px monospace"; // 300% bigger
+            this.ctx.textAlign = "center";
+            this.ctx.fillText(this.deathMessage, VIEWPORT_WIDTH / 2, VIEWPORT_HEIGHT / 2 + 20);
+            this.ctx.globalAlpha = 1;
+
+            // Spawn particles for animation at start
+            if (this.deathMessageTime === 60) {
+                for (let i = 0; i < 20; i++) {
+                    this.spawnParticles(VIEWPORT_WIDTH / 2 + (Math.random() - 0.5) * 100, VIEWPORT_HEIGHT / 2 + (Math.random() - 0.5) * 100, "sparkle", 1);
+                }
+            }
+        }
+
         const grad = this.ctx.createRadialGradient(VIEWPORT_WIDTH / 2, VIEWPORT_HEIGHT / 2, 200, VIEWPORT_WIDTH / 2, VIEWPORT_HEIGHT / 2, VIEWPORT_WIDTH);
         grad.addColorStop(0, "rgba(0,0,0,0)"); grad.addColorStop(1, "rgba(0,10,0,0.6)");
         this.ctx.fillStyle = grad; this.ctx.fillRect(0, 0, VIEWPORT_WIDTH, VIEWPORT_HEIGHT);
