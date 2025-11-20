@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="de">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Zone X - Tactical Hazard Edition</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+
+    <div id="game-container">
+        <canvas id="gameCanvas"></canvas>
+        <div id="high-rad-overlay" class="high-rad-overlay"></div>
+
+        <div id="ui-layer">
+            <div class="stat-box">SC:<span id="score-display" style="color:#0f0">0</span></div>
+            <div class="stat-box">Pu:<span id="plutonium-display" style="color:#0ff">0/0</span></div>
+            <div class="stat-box">
+                <span style="color: #ff3333; animation: blink 1s infinite;">⚠</span>
+                <div id="radiation-bar-container">
+                    <div id="radiation-bar"></div>
+                </div>
+            </div>
+            <div class="stat-box">
+                ♫<input type="range" min="0" max="1" step="0.01" value="0.1"
+                    oninput="soundManager.setMusicVolume(this.value)">
+            </div>
+            <div class="stat-box" id="inventory"></div>
+            <div class="stat-box">♥<span id="lives-display" style="color:#f00">3</span></div>
+        </div>
+
+        <div id="editor-ui">
+            <div class="editor-panel" id="toolbar">
+                <div class="tool-btn active" data-tool="1" title="Wand">█</div>
+                <div class="tool-btn" data-tool="2" title="Boden">▒</div>
+                <div class="tool-btn" data-tool="11" title="Gras">"</div>
+                <div class="tool-btn" data-tool="4" title="Tür">D</div>
+                <div class="tool-btn" data-tool="5" title="Schlüssel">K</div>
+                <div class="tool-btn" data-tool="6" title="Plutonium">☢</div>
+                <div class="tool-btn" data-tool="12" title="Blockaden-Station">B</div>
+                <div class="tool-btn" data-tool="7" title="Container">X</div>
+                <div class="tool-btn" data-tool="3" title="Laser">L</div>
+                <div class="tool-btn" data-tool="9" title="Start">S</div>
+                <div class="tool-btn" data-tool="R" title="Roboter">R</div>
+                <div class="tool-btn" data-tool="A" title="Alien">A</div>
+                <div class="tool-btn" data-tool="M" title="Mine">M</div>
+                <div class="tool-btn" data-tool="0" title="Radierer">⌫</div>
+            </div>
+            <div class="editor-panel" id="menu-bar">
+                <div class="tool-btn text-btn" onclick="game.testLevel()">TESTEN</div>
+                <div class="tool-btn text-btn" onclick="game.saveLevel()">SPEICHERN</div>
+                <div class="tool-btn text-btn" onclick="document.getElementById('file-input').click()">LADEN</div>
+                <div class="tool-btn text-btn" onclick="game.quitEditor()" style="background:#700; border-color:#f00;">
+                    EXIT</div>
+            </div>
+            <input type="file" id="file-input" accept=".json" style="display:none"
+                onchange="game.loadLevelFromFile(this)">
+        </div>
+
+        <div id="screens">
+            <div id="start-screen" class="screen" style="display: flex;">
+                <h1>ZONE X</h1>
+                <div
+                    style="font-size: 1rem; color: #0f0; margin-bottom: 30px; text-shadow: 0 0 5px #0f0; text-align: center; line-height: 1.5;">
+                    NEON HAZARD PROTOCOL<br>
+                    <span style="font-size: 0.8em; color: #aaa;">[WASD] Move | [Q] Drop/Take Blockade</span>
+                </div>
+                <button class="main-btn" onclick="game.start()">START MISSION</button>
+                <button class="main-btn secondary-btn" onclick="game.openLevelSelect()">ZONEN WAHL</button>
+                <button class="main-btn secondary-btn" onclick="game.openEditor()">LEVEL EDITOR</button>
+                <button class="main-btn secondary-btn" id="music-btn" onclick="game.toggleMusic()">MUSIC: OFF</button>
+            </div>
+
+            <div id="level-select-screen" class="screen">
+                <h1>ZONE WÄHLEN</h1>
+                <div id="level-select-grid"></div>
+                <button class="main-btn secondary-btn" onclick="game.quitToMenu()">ZURÜCK</button>
+            </div>
+
+            <div id="level-screen" class="screen">
+                <h1 id="level-title">ZONE 1-1</h1>
+                <p style="color:#0f0; font-size: 20px; animation: pulse 0.5s infinite;">GEFAHRENZONE BETRETEN</p>
+            </div>
+            <div id="game-over-screen" class="screen">
+                <h1 style="color: #f00; text-shadow: 0 0 30px #f00;">CRITICAL FAILURE</h1>
+                <h2 style="color: #fff;">FINAL SCORE: <span id="final-score" style="color:#0f0">0</span></h2>
+                <button class="main-btn" onclick="game.reset()">RESTART SYSTEM</button>
+                <button class="main-btn secondary-btn" onclick="game.quitToMenu()">ABBRUCH</button>
+            </div>
+            <div id="win-screen" class="screen">
+                <h1 style="color: #0f0;">ZONE SECURED</h1>
+                <button class="main-btn" onclick="game.reset()">NÄCHSTER SEKTOR</button>
+            </div>
+        </div>
+
+        <div id="mobile-controls">
+            <div class="d-pad">
+                <div class="d-btn d-up" data-key="ArrowUp">↑</div>
+                <div class="d-btn d-down" data-key="ArrowDown">↓</div>
+                <div class="d-btn d-left" data-key="ArrowLeft">←</div>
+                <div class="d-btn d-right" data-key="ArrowRight">→</div>
+            </div>
+            <div class="action-btn" data-key="q">BLK</div>
+        </div>
+    </div>
+
+    <script src="js/Config.js"></script>
+    <script src="js/SoundManager.js"></script>
+    <script src="js/Game.js"></script>
+    <script src="js/main.js"></script>
+</body>
+
+</html>
